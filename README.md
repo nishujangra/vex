@@ -55,7 +55,8 @@ The current implementation demonstrates the core architecture:
 
 ```bash
 # Compile and run (currently hardcoded parameters)
-cargo run
+RUSTFLAGS="--cfg reqwest_unstable" cargo run
+# The `http3` feature is unstable, and requires the `RUSTFLAGS='--cfg reqwest_unstable'` environment variable to be set.
 
 # Current configuration in main.rs:
 # - URL: https://127.0.0.1:7777
