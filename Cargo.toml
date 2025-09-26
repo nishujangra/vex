@@ -11,3 +11,7 @@ rustflags = ["--cfg", "reqwest_unstable"]
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.11", features = ["rustls-tls", "http3", "stream"] }
 futures = "0.3"
+
+h3 = "0.0.8"
+rustls = { version = "0.23.31", features = ["ring"] }
+quinn = "0.11.9"

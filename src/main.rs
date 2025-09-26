@@ -15,12 +15,11 @@ use reqwest::Client;
 pub mod client;
 
 
-
 #[tokio::main]
 async fn main(){
 
     let server_url = "http://127.0.0.1:7777";
-    let total_request_send = 5;
+    let total_request_send = 6;
     let concurrency = 2;
 
     let request_client = Client::builder()
@@ -40,8 +39,8 @@ async fn main(){
         let client = request_client.clone();
         let url = server_url;
 
-        let success = Arc::new(AtomicUsize::new(0));
-        let errors = Arc::new(AtomicUsize::new(0));
+        let success_clone = Arc::clone(&success);
+        let errors_clone = Arc::clone(&errors);
 
         task_list.push(tokio::spawn(async move{
             let request_per_thread = total_request_send / concurrency;
@@ -51,18 +50,18 @@ async fn main(){
                 match client.get(&*url).send().await {
                     Ok(response) => {
                         if response.status().is_success() {
-                            success.fetch_add(1, Ordering::Relaxed);
+                            success_clone.fetch_add(1, Ordering::Relaxed);
                         }
                         else{
                             eprintln!("Non-200 status: {}", response.status());
-                            errors.fetch_add(1, Ordering::Relaxed);
+                            errors_clone.fetch_add(1, Ordering::Relaxed);
                         }
                         // if want to record latency 
                         let _latency = t0.elapsed();
                     },
                     Err(e) => {
                         eprintln!("Request failed: {:?}", e);
-                        errors.fetch_add(1, Ordering::Relaxed);
+                        errors_clone.fetch_add(1, Ordering::Relaxed);
                     }
                 }
             }
