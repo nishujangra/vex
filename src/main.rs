@@ -1,80 +1,138 @@
 
-use std::{
-    time::Instant,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering}
-    }
-};
+use clap::Parser;
+use std::time::{Duration, Instant};
 
-use futures::future::join_all;
-use reqwest::Client;
-
-
-// need to replace reqwest client to the h3 client
 pub mod client;
 
+#[derive(Parser)]
+#[command(version, about = "HTTP/3 load testing tool")]
+struct Cli {
+    #[arg(long, default_value = "h3")]
+    protocol: String,
+
+    #[arg(long)]
+    target: String,
+
+    #[arg(long, default_value = "443")]
+    port: u16,
+
+    #[arg(short = 'n', long, default_value = "1000")]
+    requests: usize,
+
+    #[arg(short = 'w', long, default_value = "1")]
+    workers: usize,
+
+    #[arg(short = 't', long, default_value = "30")]
+    duration: u64,
+
+    #[arg(long, default_value = "/")]
+    path: String,
+
+    #[arg(long)]
+    host: Option<String>,
+
+    #[arg(long)]
+    insecure: bool,
+}
 
 #[tokio::main]
-async fn main(){
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
 
-    let server_url = "http://127.0.0.1:7777";
-    let total_request_send = 6;
-    let concurrency = 2;
+    if cli.protocol != "h3" {
+        eprintln!("Currently only HTTP/3 (h3) protocol is supported");
+        std::process::exit(1);
+    }
 
-    let request_client = Client::builder()
-        .http3_prior_knowledge()
-        .danger_accept_invalid_certs(true) // for self-signed certificates
-        .build()
-        .unwrap();
+    let connect_addr = format!("{}:{}", cli.target, cli.port);
+    let host = cli.host.as_ref().unwrap_or(&cli.target).clone();
+    let path = cli.path.clone();
 
-    // Shared atomic counters
-    let success = Arc::new(AtomicUsize::new(0));
-    let errors = Arc::new(AtomicUsize::new(0));
+    println!("Starting HTTP/3 load test:");
+    println!("  Target: {}", connect_addr);
+    println!("  Host: {}", host);
+    println!("  Path: {}", path);
+    println!("  Workers: {}", cli.workers);
+    println!("  Total requests: {}", cli.requests);
+    println!("  Duration: {}s", cli.duration);
+    println!("  Insecure: {}", cli.insecure);
+    println!();
 
     let start_time = Instant::now();
-    let mut task_list = Vec::new();
+    let mut total_requests = 0;
+    let mut successful_requests = 0;
+    let mut failed_requests = 0;
 
-    for _ in 0..concurrency {
-        let client = request_client.clone();
-        let url = server_url;
+    // Spawn worker tasks
+    let mut handles = vec![];
 
-        let success_clone = Arc::clone(&success);
-        let errors_clone = Arc::clone(&errors);
+    for worker_id in 0..cli.workers {
+        let connect_addr = connect_addr.clone();
+        let host = host.clone();
+        let path = path.clone();
+        let insecure = cli.insecure;
 
-        task_list.push(tokio::spawn(async move{
-            let request_per_thread = total_request_send / concurrency;
-            for _ in 0..request_per_thread {
-                let t0 = Instant::now();
+        let handle = tokio::spawn(async move {
+            let mut client = match client::h3_client::Http3Client::new(insecure) {
+                Ok(client) => client,
+                Err(e) => {
+                    eprintln!("Worker {}: Failed to create HTTP/3 client: {}", worker_id, e);
+                    return (0, 0);
+                }
+            };
 
-                match client.get(&*url).send().await {
-                    Ok(response) => {
-                        if response.status().is_success() {
-                            success_clone.fetch_add(1, Ordering::Relaxed);
-                        }
-                        else{
-                            eprintln!("Non-200 status: {}", response.status());
-                            errors_clone.fetch_add(1, Ordering::Relaxed);
-                        }
-                        // if want to record latency 
-                        let _latency = t0.elapsed();
-                    },
+            let mut worker_successful = 0;
+            let mut worker_failed = 0;
+            let requests_per_worker = cli.requests / cli.workers;
+            let start_time = Instant::now();
+
+            for i in 0..requests_per_worker {
+                if start_time.elapsed() >= Duration::from_secs(cli.duration) {
+                    break;
+                }
+
+                match client.send_request(&connect_addr, &host, &path).await {
+                    Ok(_response) => {
+                        worker_successful += 1;
+                    }
                     Err(e) => {
-                        eprintln!("Request failed: {:?}", e);
-                        errors_clone.fetch_add(1, Ordering::Relaxed);
+                        eprintln!("Worker {}: Request {} failed: {}", worker_id, i, e);
+                        worker_failed += 1;
                     }
                 }
             }
-        }));
+
+            (worker_successful, worker_failed)
+        });
+
+        handles.push(handle);
     }
 
-    join_all(task_list).await;
-    let time_elaspsed = start_time.elapsed();
+    // Wait for all workers to complete
+    for handle in handles {
+        match handle.await {
+            Ok((successful, failed)) => {
+                successful_requests += successful;
+                failed_requests += failed;
+                total_requests += successful + failed;
+            }
+            Err(e) => {
+                eprintln!("Worker task failed: {}", e);
+            }
+        }
+    }
 
+    let elapsed = start_time.elapsed();
+    let total_seconds = elapsed.as_secs_f64();
 
-    println!("Total request send: {}", total_request_send);
-    println!("Total success request: {}", success.load(Ordering::Relaxed));
-    println!("Total failed request: {}", errors.load(Ordering::Relaxed));
-    println!("Time elapsed: {:?}", time_elaspsed);
-    println!("Req/sec: {:.2}", total_request_send as f64 / time_elaspsed.as_secs_f64());
+    println!();
+    println!("Load test completed:");
+    println!("  Total time: {:.2}s", total_seconds);
+    println!("  Total requests: {}", total_requests);
+    println!("  Successful requests: {}", successful_requests);
+    println!("  Failed requests: {}", failed_requests);
+    println!("  Requests per second: {:.2}",
+             if total_seconds > 0.0 { total_requests as f64 / total_seconds } else { 0.0 });
+
+    Ok(())
 }
