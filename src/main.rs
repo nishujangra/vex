@@ -145,8 +145,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         // Track status code
                         *status_codes.entry(result.status_code).or_insert(0) += 1;
 
-                        // Classify as success/fail based on status code (2xx is success)
-                        if result.status_code >= 200 && result.status_code < 300 {
+                        // Classify as success/fail based on status code (2xx is success/ redirect are not failure)
+                        if (result.status_code >= 200 && result.status_code < 300) || (result.status_code == 301 || result.status_code == 302)  {
                             success += 1;
                         } else {
                             fail += 1;
