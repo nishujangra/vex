@@ -74,6 +74,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut failed_requests = 0;
     let mut total_errors = ErrorStats::default();
     let mut status_code_counts: HashMap<u16, usize> = HashMap::new();
+    let mut worker_failures = 0;
 
     let mut handles = vec![];
 
@@ -142,19 +143,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         handles.push(handle);
     }
 
-    for handle in handles {
-        if let Ok((s, f, errors, status_codes)) = handle.await {
-            total_requests += s + f;
-            successful_requests += s;
-            failed_requests += f;
-            total_errors.send_errors += errors.send_errors;
-            total_errors.recv_errors += errors.recv_errors;
-            total_errors.quic_errors += errors.quic_errors;
-            total_errors.stream_reset_errors += errors.stream_reset_errors;
+    for (worker_id, handle) in handles.into_iter().enumerate() {
+        match handle.await {
+            Ok((s, f, errors, status_codes)) => {
+                total_requests += s + f;
+                successful_requests += s;
+                failed_requests += f;
+                total_errors.send_errors += errors.send_errors;
+                total_errors.recv_errors += errors.recv_errors;
+                total_errors.quic_errors += errors.quic_errors;
+                total_errors.stream_reset_errors += errors.stream_reset_errors;
 
-            // Aggregate status code counts
-            for (code, count) in status_codes {
-                *status_code_counts.entry(code).or_insert(0) += count;
+                // Aggregate status code counts
+                for (code, count) in status_codes {
+                    *status_code_counts.entry(code).or_insert(0) += count;
+                }
+            }
+            Err(join_err) => {
+                worker_failures += 1;
+                if join_err.is_panic() {
+                    eprintln!("Worker {}: Panicked", worker_id);
+                } else if join_err.is_cancelled() {
+                    eprintln!("Worker {}: Cancelled", worker_id);
+                } else {
+                    eprintln!("Worker {}: Failed with unknown error", worker_id);
+                }
             }
         }
     }
@@ -213,6 +226,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             println!("  {}: {} ({})", code, status_desc, count);
         }
+    }
+
+    // Report worker failures
+    if worker_failures > 0 {
+        eprintln!(
+            "\nWarning: {} worker(s) failed or panicked",
+            worker_failures
+        );
+        eprintln!(
+            "This may indicate system instability or resource exhaustion during the load test."
+        );
+        return Err(format!(
+            "{} worker failure(s) detected",
+            worker_failures
+        )
+        .into());
     }
 
     // Verify that all requested requests were sent (only if we didn't hit duration limit)
