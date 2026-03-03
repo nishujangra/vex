@@ -5,6 +5,8 @@ use std::time::{Instant, Duration};
 pub mod client;
 pub mod utils;
 
+use client::h3_client::ErrorStats;
+
 #[derive(Parser)]
 #[command(version, about = "HTTP/3 load testing tool")]
 struct Cli {
@@ -63,6 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut total_requests = 0;
     let mut successful_requests = 0;
     let mut failed_requests = 0;
+    let mut total_errors = ErrorStats::default();
 
     let mut handles = vec![];
 
@@ -84,12 +87,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(c) => c,
                 Err(e) => {
                     eprintln!("Worker {}: Failed to init client: {}", worker_id, e);
-                    return (0, 0);
+                    return (0, 0, ErrorStats::default());
                 }
             };
 
             let mut success = 0;
             let mut fail = 0;
+            let mut total_errors = ErrorStats::default();
 
             for i in 0..requests_per_worker {
                 // Check if we've exceeded the duration deadline
@@ -98,7 +102,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 match client.send_request(&target, port, &host, &path).await {
-                    Ok(_) => success += 1,
+                    Ok((_body, errors)) => {
+                        success += 1;
+                        total_errors.send_errors += errors.send_errors;
+                        total_errors.recv_errors += errors.recv_errors;
+                        total_errors.quic_errors += errors.quic_errors;
+                        total_errors.stream_reset_errors += errors.stream_reset_errors;
+                    }
                     Err(e) => {
                         eprintln!("Worker {}: Request {} failed: {}", worker_id, i, e);
                         fail += 1;
@@ -106,17 +116,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            (success, fail)
+            (success, fail, total_errors)
         });
 
         handles.push(handle);
     }
 
     for handle in handles {
-        if let Ok((s, f)) = handle.await {
+        if let Ok((s, f, errors)) = handle.await {
             total_requests += s + f;
             successful_requests += s;
             failed_requests += f;
+            total_errors.send_errors += errors.send_errors;
+            total_errors.recv_errors += errors.recv_errors;
+            total_errors.quic_errors += errors.quic_errors;
+            total_errors.stream_reset_errors += errors.stream_reset_errors;
         }
     }
 
@@ -134,6 +148,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  Completion reason: Duration limit ({:.0}s) reached", cli.duration);
     } else {
         println!("  Completion reason: All {} requests completed", cli.requests);
+    }
+
+    // Report error breakdown
+    let has_errors = total_errors.send_errors > 0
+        || total_errors.recv_errors > 0
+        || total_errors.quic_errors > 0
+        || total_errors.stream_reset_errors > 0;
+
+    if has_errors {
+        println!("\nError breakdown:");
+        if total_errors.send_errors > 0 {
+            println!("  Network send errors: {}", total_errors.send_errors);
+        }
+        if total_errors.recv_errors > 0 {
+            println!("  Network recv errors: {}", total_errors.recv_errors);
+        }
+        if total_errors.quic_errors > 0 {
+            println!("  QUIC/protocol errors: {}", total_errors.quic_errors);
+        }
+        if total_errors.stream_reset_errors > 0 {
+            println!("  Stream reset errors: {}", total_errors.stream_reset_errors);
+        }
     }
 
     // Verify that all requested requests were sent (only if we didn't hit duration limit)

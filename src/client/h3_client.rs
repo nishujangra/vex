@@ -7,6 +7,14 @@ use std::{
 use tokio::net::UdpSocket;
 use crate::utils::resolve_target;
 
+#[derive(Debug, Clone, Default)]
+pub struct ErrorStats {
+    pub send_errors: usize,
+    pub recv_errors: usize,
+    pub quic_errors: usize,
+    pub stream_reset_errors: usize,
+}
+
 pub struct Http3Client {
     config: quiche::Config,
     pub insecure: bool,
@@ -36,8 +44,8 @@ impl Http3Client {
         target: &str,
         port: u16,
         host: &str,
-        path: &str, 
-    ) -> Result<String, Box<dyn std::error::Error>> {
+        path: &str,
+    ) -> Result<(String, ErrorStats), Box<dyn std::error::Error>> {
         // Resolve target
         let peer_addr: SocketAddr = resolve_target(target, port)?;
 
@@ -61,10 +69,14 @@ impl Http3Client {
         let mut out = [0u8; 65_535];
         let mut buf = [0u8; 65_535];
         let start = Instant::now();
+        let mut errors = ErrorStats::default();
 
         // Initial packet send
         if let Ok((write, send_info)) = conn.send(&mut out) {
-            let _ = socket.send_to(&out[..write], send_info.to).await;
+            if let Err(e) = socket.send_to(&out[..write], send_info.to).await {
+                eprintln!("Initial send_to failed: {}", e);
+                errors.send_errors += 1;
+            }
         }
 
         while !response_done && !conn.is_closed() {
@@ -72,7 +84,10 @@ impl Http3Client {
             loop {
                 match conn.send(&mut out) {
                     Ok((write, send_info)) => {
-                        let _ = socket.send_to(&out[..write], send_info.to).await;
+                        if let Err(e) = socket.send_to(&out[..write], send_info.to).await {
+                            eprintln!("send_to failed: {}", e);
+                            errors.send_errors += 1;
+                        }
                     }
                     Err(quiche::Error::Done) => break,
                     Err(e) => return Err(format!("send failed: {:?}", e).into()),
@@ -86,9 +101,15 @@ impl Http3Client {
                 Ok(Ok((len, from))) => {
                     // Packet received, process it
                     let recv_info = quiche::RecvInfo { from, to: local_addr };
-                    let _ = conn.recv(&mut buf[..len], recv_info);
+                    if let Err(e) = conn.recv(&mut buf[..len], recv_info) {
+                        eprintln!("conn.recv error: {:?}", e);
+                        errors.quic_errors += 1;
+                    }
                 }
-                Ok(Err(e)) => return Err(e.into()),
+                Ok(Err(e)) => {
+                    eprintln!("socket.recv_from error: {}", e);
+                    errors.recv_errors += 1;
+                }
                 Err(_) => {
                     // Timeout expired, notify quiche
                     conn.on_timeout();
@@ -130,7 +151,10 @@ impl Http3Client {
                                 match h3.recv_body(&mut conn, stream_id, &mut buf) {
                                     Ok(read) => response_body.extend_from_slice(&buf[..read]),
                                     Err(quiche::h3::Error::Done) => break,
-                                    Err(e) => return Err(format!("recv_body failed: {:?}", e).into()),
+                                    Err(e) => {
+                                        eprintln!("recv_body error: {:?}", e);
+                                        errors.quic_errors += 1;
+                                    }
                                 }
                             }
                         }
@@ -144,10 +168,16 @@ impl Http3Client {
                             break;
                         }
                         Ok((_id, quiche::h3::Event::Reset(_))) => {
-                            return Err("stream reset by peer".into());
+                            eprintln!("Stream reset by peer");
+                            errors.stream_reset_errors += 1;
+                            response_done = true;
+                            break;
                         }
                         Err(quiche::h3::Error::Done) => break,
-                        Err(e) => return Err(format!("h3 poll failed: {:?}", e).into()),
+                        Err(e) => {
+                            eprintln!("h3 poll error: {:?}", e);
+                            errors.quic_errors += 1;
+                        }
                     }
                 }
             }
@@ -158,6 +188,6 @@ impl Http3Client {
             }
         }
 
-        Ok(String::from_utf8_lossy(&response_body).to_string())
+        Ok((String::from_utf8_lossy(&response_body).to_string(), errors))
     }
 }
