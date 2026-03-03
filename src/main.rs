@@ -8,6 +8,27 @@ pub mod utils;
 
 use client::h3_client::{ErrorStats, ResponseResult};
 
+/// Helper function to compute percentile from sorted values
+fn percentile(sorted_values: &[f64], p: f64) -> f64 {
+    if sorted_values.is_empty() {
+        return 0.0;
+    }
+    if sorted_values.len() == 1 {
+        return sorted_values[0];
+    }
+
+    let idx = (p / 100.0) * (sorted_values.len() - 1) as f64;
+    let lower = idx.floor() as usize;
+    let upper = idx.ceil() as usize;
+    let weight = idx - idx.floor();
+
+    if lower == upper {
+        sorted_values[lower]
+    } else {
+        sorted_values[lower] * (1.0 - weight) + sorted_values[upper] * weight
+    }
+}
+
 #[derive(Parser)]
 #[command(version, about = "HTTP/3 load testing tool")]
 struct Cli {
@@ -75,6 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut total_errors = ErrorStats::default();
     let mut status_code_counts: HashMap<u16, usize> = HashMap::new();
     let mut worker_failures = 0;
+    let mut all_latencies = Vec::new();
 
     let mut handles = vec![];
 
@@ -97,7 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(c) => c,
                 Err(e) => {
                     eprintln!("Worker {}: Failed to init client: {}", worker_id, e);
-                    return (0, 0, ErrorStats::default(), HashMap::new());
+                    return (0, 0, ErrorStats::default(), HashMap::new(), Vec::new());
                 }
             };
 
@@ -105,6 +127,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut fail = 0;
             let mut total_errors = ErrorStats::default();
             let mut status_codes = HashMap::new();
+            let mut latencies = Vec::new();
 
             for i in 0..requests_per_worker {
                 // Check if we've exceeded the duration deadline
@@ -129,6 +152,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         total_errors.recv_errors += result.errors.recv_errors;
                         total_errors.quic_errors += result.errors.quic_errors;
                         total_errors.stream_reset_errors += result.errors.stream_reset_errors;
+
+                        // Record latency
+                        latencies.push(result.latency_ms);
                     }
                     Err(e) => {
                         eprintln!("Worker {}: Request {} failed: {}", worker_id, i, e);
@@ -137,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            (success, fail, total_errors, status_codes)
+            (success, fail, total_errors, status_codes, latencies)
         });
 
         handles.push(handle);
@@ -145,7 +171,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for (worker_id, handle) in handles.into_iter().enumerate() {
         match handle.await {
-            Ok((s, f, errors, status_codes)) => {
+            Ok((s, f, errors, status_codes, latencies)) => {
                 total_requests += s + f;
                 successful_requests += s;
                 failed_requests += f;
@@ -158,6 +184,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 for (code, count) in status_codes {
                     *status_code_counts.entry(code).or_insert(0) += count;
                 }
+
+                // Aggregate latencies
+                all_latencies.extend(latencies);
             }
             Err(join_err) => {
                 worker_failures += 1;
@@ -226,6 +255,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             println!("  {}: {} ({})", code, status_desc, count);
         }
+    }
+
+    // Report latency metrics
+    if !all_latencies.is_empty() {
+        println!("\nLatency metrics (ms):");
+
+        let mut sorted_latencies = all_latencies.clone();
+        sorted_latencies.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        let min = sorted_latencies[0];
+        let max = sorted_latencies[sorted_latencies.len() - 1];
+        let avg = sorted_latencies.iter().sum::<f64>() / sorted_latencies.len() as f64;
+        let p50 = percentile(&sorted_latencies, 50.0);
+        let p90 = percentile(&sorted_latencies, 90.0);
+        let p95 = percentile(&sorted_latencies, 95.0);
+        let p99 = percentile(&sorted_latencies, 99.0);
+
+        println!("  Min:  {:.2}", min);
+        println!("  Max:  {:.2}", max);
+        println!("  Avg:  {:.2}", avg);
+        println!("  p50:  {:.2}", p50);
+        println!("  p90:  {:.2}", p90);
+        println!("  p95:  {:.2}", p95);
+        println!("  p99:  {:.2}", p99);
     }
 
     // Report worker failures

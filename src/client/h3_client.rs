@@ -20,6 +20,7 @@ pub struct ResponseResult {
     pub status_code: u16,
     pub body: String,
     pub errors: ErrorStats,
+    pub latency_ms: f64,
 }
 
 pub struct Http3Client {
@@ -208,10 +209,12 @@ impl Http3Client {
             }
         }
 
+        let latency_ms = start.elapsed().as_secs_f64() * 1000.0;
         Ok(ResponseResult {
             status_code,
             body: String::from_utf8_lossy(&response_body).to_string(),
             errors,
+            latency_ms,
         })
     }
 }
