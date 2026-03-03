@@ -1,68 +1,56 @@
-# Documentation
+# vex Documentation
 
-This directory contains documentation for vex, a minimal HTTP/3 load testing tool.
+Comprehensive guides for using vex, an HTTP/3 load testing tool.
 
-## Quick Links
+## Getting Started
+
+New to vex? Start here:
 
 - **[Getting Started](GETTING_STARTED.md)** - Installation and first load test
 - **[CLI Reference](CLI_REFERENCE.md)** - Complete option documentation
 - **[Examples](EXAMPLES.md)** - Real-world usage patterns
 - **[Metrics](METRICS.md)** - Understanding output and interpreting results
 
-## Documentation Overview
+## Documentation Sections
 
-### GETTING_STARTED.md
+### Getting Started
+Quick start guide covering installation, running your first test, common scenarios, and understanding output.
 
-Quick start guide covering:
-- Installation
-- Running your first test
-- Common scenarios
-- Understanding output
+### CLI Reference
+Detailed reference for all CLI options including required arguments, load configuration, connection settings, and output control.
 
-Start here if you're new to vex.
+### Examples
+Practical examples for baseline testing, concurrency testing, duration-based testing, endpoint testing, and performance comparison.
 
-### CLI_REFERENCE.md
+### Metrics
+Detailed explanation of summary metrics, status code breakdown, latency percentiles, error categories, and analysis patterns.
 
-Detailed reference for all CLI options:
-- Required options
-- Load configuration
-- Connection settings
-- Output control
+## Building Documentation
 
-Use this to understand what each flag does.
+Install dependencies:
+```bash
+pip install -r docs-requirements.txt
+```
 
-### EXAMPLES.md
+Serve documentation locally:
+```bash
+mkdocs serve
+```
 
-Practical examples for:
-- Baseline testing
-- Concurrency testing
-- Time-based testing
-- Endpoint testing
-- Local service testing
-- Debugging
-- Performance comparison
-- High throughput testing
+Then visit `http://localhost:8000` in your browser.
 
-Covers common use cases and testing strategies.
+Build static site:
+```bash
+mkdocs build
+```
 
-### METRICS.md
+Output will be in the `site/` directory.
 
-Detailed explanation of:
-- Summary metrics (throughput, request counts)
-- Status code breakdown
-- Latency percentiles and interpretation
-- Error categories
-- Common patterns and analysis
+## Project Structure
 
-Use this to understand what the metrics mean and how to interpret results.
+- `HTTP/3 Client`: QUIC-based implementation using quiche
+- `Worker System`: Async tasks distributing requests across concurrent workers
+- `Metrics Collection`: Per-request latency tracking and error categorization
+- `Result Reporting`: Console output with aggregated statistics
 
-## Architecture
-
-The vex tool consists of:
-
-- **HTTP/3 Client**: QUIC-based HTTP/3 implementation using quiche
-- **Worker System**: Async tasks distributing requests across concurrent workers
-- **Metrics Collection**: Per-request latency tracking and error categorization
-- **Result Reporting**: Console output with aggregated statistics
-
-See the main README.md in the project root for architectural overview.
+See the main README.md for architectural details.
