@@ -15,6 +15,13 @@ pub struct ErrorStats {
     pub stream_reset_errors: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct ResponseResult {
+    pub status_code: u16,
+    pub body: String,
+    pub errors: ErrorStats,
+}
+
 pub struct Http3Client {
     config: quiche::Config,
     pub insecure: bool,
@@ -45,7 +52,7 @@ impl Http3Client {
         port: u16,
         host: &str,
         path: &str,
-    ) -> Result<(String, ErrorStats), Box<dyn std::error::Error>> {
+    ) -> Result<ResponseResult, Box<dyn std::error::Error>> {
         // Resolve target
         let peer_addr: SocketAddr = resolve_target(target, port)?;
 
@@ -65,6 +72,7 @@ impl Http3Client {
         let mut req_sent = false;
         let mut response_done = false;
         let mut response_body = Vec::new();
+        let mut status_code = 0u16;
 
         let mut out = [0u8; 65_535];
         let mut buf = [0u8; 65_535];
@@ -143,6 +151,14 @@ impl Http3Client {
                             for h in list {
                                 let name = String::from_utf8_lossy(h.name());
                                 let value = String::from_utf8_lossy(h.value());
+
+                                // Parse :status header
+                                if name == ":status" {
+                                    if let Ok(code) = value.parse::<u16>() {
+                                        status_code = code;
+                                    }
+                                }
+
                                 println!("{name}: {value}");
                             }
                         }
@@ -188,6 +204,10 @@ impl Http3Client {
             }
         }
 
-        Ok((String::from_utf8_lossy(&response_body).to_string(), errors))
+        Ok(ResponseResult {
+            status_code,
+            body: String::from_utf8_lossy(&response_body).to_string(),
+            errors,
+        })
     }
 }

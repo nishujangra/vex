@@ -1,11 +1,12 @@
 use clap::Parser;
 use std::sync::Arc;
 use std::time::{Instant, Duration};
+use std::collections::HashMap;
 
 pub mod client;
 pub mod utils;
 
-use client::h3_client::ErrorStats;
+use client::h3_client::{ErrorStats, ResponseResult};
 
 #[derive(Parser)]
 #[command(version, about = "HTTP/3 load testing tool")]
@@ -66,6 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut successful_requests = 0;
     let mut failed_requests = 0;
     let mut total_errors = ErrorStats::default();
+    let mut status_code_counts: HashMap<u16, usize> = HashMap::new();
 
     let mut handles = vec![];
 
@@ -87,13 +89,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(c) => c,
                 Err(e) => {
                     eprintln!("Worker {}: Failed to init client: {}", worker_id, e);
-                    return (0, 0, ErrorStats::default());
+                    return (0, 0, ErrorStats::default(), HashMap::new());
                 }
             };
 
             let mut success = 0;
             let mut fail = 0;
             let mut total_errors = ErrorStats::default();
+            let mut status_codes = HashMap::new();
 
             for i in 0..requests_per_worker {
                 // Check if we've exceeded the duration deadline
@@ -102,12 +105,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 match client.send_request(&target, port, &host, &path).await {
-                    Ok((_body, errors)) => {
-                        success += 1;
-                        total_errors.send_errors += errors.send_errors;
-                        total_errors.recv_errors += errors.recv_errors;
-                        total_errors.quic_errors += errors.quic_errors;
-                        total_errors.stream_reset_errors += errors.stream_reset_errors;
+                    Ok(result) => {
+                        // Track status code
+                        *status_codes.entry(result.status_code).or_insert(0) += 1;
+
+                        // Classify as success/fail based on status code (2xx is success)
+                        if result.status_code >= 200 && result.status_code < 300 {
+                            success += 1;
+                        } else {
+                            fail += 1;
+                        }
+
+                        // Accumulate errors
+                        total_errors.send_errors += result.errors.send_errors;
+                        total_errors.recv_errors += result.errors.recv_errors;
+                        total_errors.quic_errors += result.errors.quic_errors;
+                        total_errors.stream_reset_errors += result.errors.stream_reset_errors;
                     }
                     Err(e) => {
                         eprintln!("Worker {}: Request {} failed: {}", worker_id, i, e);
@@ -116,14 +129,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            (success, fail, total_errors)
+            (success, fail, total_errors, status_codes)
         });
 
         handles.push(handle);
     }
 
     for handle in handles {
-        if let Ok((s, f, errors)) = handle.await {
+        if let Ok((s, f, errors, status_codes)) = handle.await {
             total_requests += s + f;
             successful_requests += s;
             failed_requests += f;
@@ -131,6 +144,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             total_errors.recv_errors += errors.recv_errors;
             total_errors.quic_errors += errors.quic_errors;
             total_errors.stream_reset_errors += errors.stream_reset_errors;
+
+            // Aggregate status code counts
+            for (code, count) in status_codes {
+                *status_code_counts.entry(code).or_insert(0) += count;
+            }
         }
     }
 
@@ -169,6 +187,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if total_errors.stream_reset_errors > 0 {
             println!("  Stream reset errors: {}", total_errors.stream_reset_errors);
+        }
+    }
+
+    // Report HTTP status code breakdown
+    if !status_code_counts.is_empty() {
+        println!("\nHTTP Status code breakdown:");
+        let mut sorted_codes: Vec<_> = status_code_counts.iter().collect();
+        sorted_codes.sort_by_key(|&(code, _)| code);
+
+        for (code, count) in sorted_codes {
+            let status_desc = match *code {
+                200..=299 => "2xx Success",
+                300..=399 => "3xx Redirect",
+                400..=499 => "4xx Client Error",
+                500..=599 => "5xx Server Error",
+                _ => "Unknown",
+            };
+            println!("  {}: {} ({})", code, status_desc, count);
         }
     }
 
