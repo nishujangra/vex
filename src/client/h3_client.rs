@@ -34,11 +34,12 @@ impl Http3Client {
     pub async fn send_request(
         &mut self,
         target: &str,
+        port: u16,
         host: &str,
-        path: &str,
+        path: &str, 
     ) -> Result<String, Box<dyn std::error::Error>> {
         // Resolve target
-        let peer_addr: SocketAddr = resolve_target(target, 443)?;
+        let peer_addr: SocketAddr = resolve_target(target, port)?;
 
         // Bind local UDP socket
         let bind_addr: SocketAddr = "0.0.0.0:0".parse()?;

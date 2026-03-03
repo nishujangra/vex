@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::time::{Duration, Instant};
+use std::time::{Instant};
 
 pub mod client;
 pub mod utils;
@@ -57,11 +57,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for worker_id in 0..cli.workers {
         let target = cli.target.clone();
+        let port = cli.port;
         let host = host.clone();
         let path = cli.path.clone();
         let insecure = cli.insecure;
         let requests_per_worker = cli.requests / cli.workers;
-        let duration = cli.duration;
+        let _duration = cli.duration;
 
         let handle = tokio::spawn(async move {
             let mut client = match client::h3_client::Http3Client::new(insecure) {
@@ -74,13 +75,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let mut success = 0;
             let mut fail = 0;
-            let start = Instant::now();
+            let _start = Instant::now();
 
             for i in 0..requests_per_worker {
-                if start.elapsed() >= Duration::from_secs(duration) {
-                    break;
-                }
-                match client.send_request(&target, &host, &path).await {
+                // if start.elapsed() >= Duration::from_secs(duration) {
+                //     break;
+                // }
+                match client.send_request(&target, port, &host, &path).await {
                     Ok(_) => success += 1,
                     Err(e) => {
                         eprintln!("Worker {}: Request {} failed: {}", worker_id, i, e);
