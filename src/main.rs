@@ -34,9 +34,12 @@ struct Cli {
     
     #[arg(long)]
     host: Option<String>,
-    
+
     #[arg(long)]
     insecure: bool,
+
+    #[arg(long, default_value = "false")]
+    verbose: bool,
 }
 
 #[tokio::main]
@@ -58,6 +61,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Total requests: {}", cli.requests);
     println!("  Duration: {}s", cli.duration);
     println!("  Insecure: {}", cli.insecure);
+    if cli.verbose {
+        println!("  Verbose: enabled");
+    }
     println!();
 
     let start_time = Instant::now();
@@ -81,6 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let host = host.clone();
         let path = cli.path.clone();
         let insecure = cli.insecure;
+        let verbose = cli.verbose;
         let requests_per_worker = quotient + if worker_id < remainder { 1 } else { 0 };
         let deadline = Arc::clone(&deadline);
 
@@ -104,7 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     break;
                 }
 
-                match client.send_request(&target, port, &host, &path).await {
+                match client.send_request(&target, port, &host, &path, verbose).await {
                     Ok(result) => {
                         // Track status code
                         *status_codes.entry(result.status_code).or_insert(0) += 1;

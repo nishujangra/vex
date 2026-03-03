@@ -52,6 +52,7 @@ impl Http3Client {
         port: u16,
         host: &str,
         path: &str,
+        verbose: bool,
     ) -> Result<ResponseResult, Box<dyn std::error::Error>> {
         // Resolve target
         let peer_addr: SocketAddr = resolve_target(target, port)?;
@@ -159,7 +160,10 @@ impl Http3Client {
                                     }
                                 }
 
-                                println!("{name}: {value}");
+                                // Only print headers in verbose mode
+                                if verbose {
+                                    println!("{name}: {value}");
+                                }
                             }
                         }
                         Ok((stream_id, quiche::h3::Event::Data)) => {
