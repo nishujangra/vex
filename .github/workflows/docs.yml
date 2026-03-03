@@ -3,7 +3,6 @@ name: Build and Deploy Documentation
 on:
   push:
     branches:
-      - main
       - master
     paths:
       - 'docs/**'
@@ -12,7 +11,6 @@ on:
       - '.github/workflows/docs.yml'
   pull_request:
     branches:
-      - main
       - master
     paths:
       - 'docs/**'
@@ -54,7 +52,7 @@ jobs:
           path: 'site'
 
   deploy:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: build
     environment:
       name: github-pages
