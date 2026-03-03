@@ -6,7 +6,7 @@ use std::collections::HashMap;
 pub mod client;
 pub mod utils;
 
-use client::h3_client::{ErrorStats, ResponseResult};
+use client::h3_client::ErrorStats;
 
 /// Helper function to compute percentile from sorted values
 fn percentile(sorted_values: &[f64], p: f64) -> f64 {
@@ -44,7 +44,7 @@ struct Cli {
     #[arg(short = 'n', long, default_value = "1000")]
     requests: usize,
 
-    #[arg(short = 'w', long, default_value = "1", value_parser = clap::value_parser!(usize).range(1..))]
+    #[arg(short = 'w', long, default_value = "1")]
     workers: usize,
     
     #[arg(short = 't', long, default_value = "30")]
@@ -69,6 +69,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if cli.protocol != "h3" {
         eprintln!("Only HTTP/3 supported");
+        std::process::exit(1);
+    }
+
+    if cli.workers == 0 {
+        eprintln!("workers must be at least 1");
         std::process::exit(1);
     }
 

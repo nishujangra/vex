@@ -1,4 +1,4 @@
-use quiche::{self, h3::Header};
+use quiche::{self, h3::{Header, NameValue}};
 use rand::RngCore;
 use std::{
     net::SocketAddr,
