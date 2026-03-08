@@ -6,15 +6,12 @@ use std::collections::HashMap;
 pub mod client;
 pub mod utils;
 
-use client::h3_client::ErrorStats;
+use client::ErrorStats;
 use utils::{percentile, is_success_status};
 
 #[derive(Parser)]
 #[command(version, about = "HTTP/3 load testing tool")]
 struct Cli {
-    #[arg(long, default_value = "h3")]
-    protocol: String,
-
     #[arg(long)]
     target: String,
 
@@ -26,15 +23,12 @@ struct Cli {
 
     #[arg(short = 'w', long, default_value = "1")]
     workers: usize,
-    
+
     #[arg(short = 't', long, default_value = "30")]
     duration: u64,
-    
+
     #[arg(long, default_value = "/")]
     path: String,
-    
-    #[arg(long)]
-    host: Option<String>,
 
     #[arg(long)]
     insecure: bool,
@@ -50,17 +44,12 @@ struct Cli {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    if cli.protocol != "h3" {
-        eprintln!("Only HTTP/3 supported");
-        std::process::exit(1);
-    }
-
     if cli.workers == 0 {
         eprintln!("workers must be at least 1");
         std::process::exit(1);
     }
 
-    let host = cli.host.as_ref().unwrap_or(&cli.target).clone();
+    let host = cli.target.clone();
 
     println!("Starting HTTP/3 load test:");
     println!("  Target: {}:{}", cli.target, cli.port);
