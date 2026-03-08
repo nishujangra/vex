@@ -3,8 +3,7 @@
 
 <head>
     <script>
-        // for search plugin notably
-        const base_url = "https://nishujangra.github.io/vex/";
+        const base_url = "https://nishujangra.github.io/vex/"; /* for search plugin notably */
     </script>
     <script>
     const darkTheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -36,7 +35,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Installation - vex</title>
+
     
 
 
@@ -47,6 +46,8 @@
 
 
 
+
+<meta name="author" content="Nishant">
 
 
 
@@ -100,7 +101,8 @@
 <!-- The loading of KaTeX is deferred to speed up page rendering -->
 <script defer src="../js/katex.min.js"></script>
 <!-- To automatically render math in text elements, include the auto-render extension: -->
-<script defer src="../js/auto-render.min.js" onload="renderMathInElement(document.body);"></script>
+<script defer src="../js/auto-render.min.js"
+    onload='renderMathInElement(document.body, "{}");'></script>
     
 
     
@@ -503,9 +505,6 @@ cargo build --release</code></pre>
 <p>Runs for 60 seconds with 50 concurrent workers. The test stops when the duration expires or all requests complete, whichever comes first.</p>
 <h3 id="test-a-specific-endpoint">Test a Specific Endpoint<a class="headerlink" href="#test-a-specific-endpoint" title="Permanent link">&para;</a></h3>
 <pre class="highlight"><code class="language-bash">cargo run --release -- --target api.example.com --path "/v1/users" --workers 100 --requests 10000</code></pre>
-<h3 id="custom-host-header">Custom Host Header<a class="headerlink" href="#custom-host-header" title="Permanent link">&para;</a></h3>
-<p>Use this when the server listens on an IP but requires a specific Host header:</p>
-<pre class="highlight"><code class="language-bash">cargo run --release -- --target 10.0.0.5 --host api.example.com --port 8443 --insecure</code></pre>
 <h2 id="understanding-output">Understanding Output<a class="headerlink" href="#understanding-output" title="Permanent link">&para;</a></h2>
 <p>After the test completes, you'll see:</p>
 <ul>
@@ -702,12 +701,6 @@ Latency metrics (ms):
             Test a Specific Endpoint
         </a>
         
-        <a href="#custom-host-header"
-            class="text-muted-foreground hover:text-foreground data-[active=true]:text-foreground text-[0.8rem] no-underline transition-colors data-[depth=3]:pl-4 data-[depth=4]:pl-6"
-            data-active="false" data-depth="3">
-            Custom Host Header
-        </a>
-        
         
 
         
@@ -782,7 +775,7 @@ Latency metrics (ms):
   "prerender": [
     {
       "where": {
-          "selector_matches": ["#next-button", "#previous-button"],
+          "selector_matches": ["#next-button", "#previous-button"]
       }
     }
   ]

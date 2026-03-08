@@ -3,8 +3,7 @@
 
 <head>
     <script>
-        // for search plugin notably
-        const base_url = "https://nishujangra.github.io/vex/";
+        const base_url = "https://nishujangra.github.io/vex/"; /* for search plugin notably */
     </script>
     <script>
     const darkTheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -36,7 +35,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Home - vex</title>
+
     
 
 
@@ -47,6 +46,8 @@
 
 
 
+
+<meta name="author" content="Nishant">
 
 
 
@@ -100,7 +101,8 @@
 <!-- The loading of KaTeX is deferred to speed up page rendering -->
 <script defer src="js/katex.min.js"></script>
 <!-- To automatically render math in text elements, include the auto-render extension: -->
-<script defer src="js/auto-render.min.js" onload="renderMathInElement(document.body);"></script>
+<script defer src="js/auto-render.min.js"
+    onload='renderMathInElement(document.body, "{}");'></script>
     
 
     
@@ -678,7 +680,7 @@
   "prerender": [
     {
       "where": {
-          "selector_matches": ["#next-button", "#previous-button"],
+          "selector_matches": ["#next-button", "#previous-button"]
       }
     }
   ]

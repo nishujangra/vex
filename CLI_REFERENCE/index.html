@@ -3,8 +3,7 @@
 
 <head>
     <script>
-        // for search plugin notably
-        const base_url = "https://nishujangra.github.io/vex/";
+        const base_url = "https://nishujangra.github.io/vex/"; /* for search plugin notably */
     </script>
     <script>
     const darkTheme = window.matchMedia("(prefers-color-scheme: dark)");
@@ -36,7 +35,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CLI Reference - vex</title>
+
     
 
 
@@ -47,6 +46,8 @@
 
 
 
+
+<meta name="author" content="Nishant">
 
 
 
@@ -100,7 +101,8 @@
 <!-- The loading of KaTeX is deferred to speed up page rendering -->
 <script defer src="../js/katex.min.js"></script>
 <!-- To automatically render math in text elements, include the auto-render extension: -->
-<script defer src="../js/auto-render.min.js" onload="renderMathInElement(document.body);"></script>
+<script defer src="../js/auto-render.min.js"
+    onload='renderMathInElement(document.body, "{}");'></script>
     
 
     
@@ -532,13 +534,6 @@ vex --target [2001:db8::1]:8443</code></pre>
 </ul>
 <pre class="highlight"><code class="language-bash">vex --target example.com --port 8443
 vex --target example.com:9000 --port 443  # Uses port 9000</code></pre>
-<h3 id="-host-host"><code>--host &lt;HOST&gt;</code><a class="headerlink" href="#-host-host" title="Permanent link">&para;</a></h3>
-<p>Host header value for the HTTP request.</p>
-<ul>
-<li>Default: Same as <code>--target</code> value</li>
-<li>Use when target is an IP but server expects a specific Host header</li>
-</ul>
-<pre class="highlight"><code class="language-bash">vex --target 10.0.0.5 --host api.example.com</code></pre>
 <h3 id="-path-path"><code>--path &lt;PATH&gt;</code><a class="headerlink" href="#-path-path" title="Permanent link">&para;</a></h3>
 <p>Request path for each HTTP request.</p>
 <ul>
@@ -546,13 +541,6 @@ vex --target example.com:9000 --port 443  # Uses port 9000</code></pre>
 <li>Must start with /</li>
 </ul>
 <pre class="highlight"><code class="language-bash">vex --target example.com --path /api/v1/test</code></pre>
-<h3 id="-protocol-protocol"><code>--protocol &lt;PROTOCOL&gt;</code><a class="headerlink" href="#-protocol-protocol" title="Permanent link">&para;</a></h3>
-<p>HTTP protocol to use.</p>
-<ul>
-<li>Default: h3</li>
-<li>Currently only h3 (HTTP/3) is supported</li>
-</ul>
-<pre class="highlight"><code class="language-bash">vex --target example.com --protocol h3</code></pre>
 <h3 id="-insecure"><code>--insecure</code><a class="headerlink" href="#-insecure" title="Permanent link">&para;</a></h3>
 <p>Disable TLS certificate verification.</p>
 <ul>
@@ -588,14 +576,12 @@ vex --target example.com --success-status 200,201,204,301,302</code></pre>
 <pre class="highlight"><code class="language-bash">vex --target example.com --verbose</code></pre>
 <h2 id="full-example">Full Example<a class="headerlink" href="#full-example" title="Permanent link">&para;</a></h2>
 <p>All options combined:</p>
-<pre class="highlight"><code class="language-bash">vex --protocol h3 \
-    --target api.example.com \
+<pre class="highlight"><code class="language-bash">vex --target api.example.com \
     --port 8443 \
     --workers 50 \
     --requests 5000 \
     --duration 120 \
     --path /api/v2/test \
-    --host api.example.com \
     --insecure \
     --verbose</code></pre>
 <h2 id="short-options">Short Options<a class="headerlink" href="#short-options" title="Permanent link">&para;</a></h2>
@@ -793,22 +779,10 @@ vex --target example.com --success-status 200,201,204,301,302</code></pre>
             --port &lt;PORT&gt;
         </a>
         
-        <a href="#-host-host"
-            class="text-muted-foreground hover:text-foreground data-[active=true]:text-foreground text-[0.8rem] no-underline transition-colors data-[depth=3]:pl-4 data-[depth=4]:pl-6"
-            data-active="false" data-depth="3">
-            --host &lt;HOST&gt;
-        </a>
-        
         <a href="#-path-path"
             class="text-muted-foreground hover:text-foreground data-[active=true]:text-foreground text-[0.8rem] no-underline transition-colors data-[depth=3]:pl-4 data-[depth=4]:pl-6"
             data-active="false" data-depth="3">
             --path &lt;PATH&gt;
-        </a>
-        
-        <a href="#-protocol-protocol"
-            class="text-muted-foreground hover:text-foreground data-[active=true]:text-foreground text-[0.8rem] no-underline transition-colors data-[depth=3]:pl-4 data-[depth=4]:pl-6"
-            data-active="false" data-depth="3">
-            --protocol &lt;PROTOCOL&gt;
         </a>
         
         <a href="#-insecure"
@@ -913,7 +887,7 @@ vex --target example.com --success-status 200,201,204,301,302</code></pre>
   "prerender": [
     {
       "where": {
-          "selector_matches": ["#next-button", "#previous-button"],
+          "selector_matches": ["#next-button", "#previous-button"]
       }
     }
   ]
