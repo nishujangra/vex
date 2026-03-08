@@ -32,4 +32,6 @@ certs/
 
 # mkdocs 
 .venv/
-site/docs/internal/
+site/
+
+docs/internal/
